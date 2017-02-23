@@ -31,11 +31,13 @@ namespace Tetris
 
             _vertexBufferDirty = true;
 
-            _effect = new BasicEffect(device);
-            _effect.VertexColorEnabled = true;
+            _effect = new BasicEffect(device)
+            {
+                VertexColorEnabled = true
+            };
         }
 
-        public void AddQuad(Transform transform, Vector2 position, Vector2 size, Color color)
+        public void AddQuad(Vector2 position, Vector2 size, Color color)
         {
             if (_usedBlocks >= _blocksCapacity)
             {
@@ -43,10 +45,10 @@ namespace Tetris
             }
 
             var vertexOffset = _usedBlocks * 4;
-            _vertices[vertexOffset + 0] = new VertexPositionColor(Vector3.Transform(new Vector3(position.X, position.Y, 0.0f), transform.Matrix), color);
-            _vertices[vertexOffset + 1] = new VertexPositionColor(Vector3.Transform(new Vector3(position.X + size.X, position.Y, 0.0f), transform.Matrix), color);
-            _vertices[vertexOffset + 2] = new VertexPositionColor(Vector3.Transform(new Vector3(position.X + size.X, position.Y + size.Y, 0.0f), transform.Matrix), color);
-            _vertices[vertexOffset + 3] = new VertexPositionColor(Vector3.Transform(new Vector3(position.X, position.Y + size.Y, 0.0f), transform.Matrix), color);
+            _vertices[vertexOffset + 0] = new VertexPositionColor(new Vector3(position.X, position.Y, 0.0f), color);
+            _vertices[vertexOffset + 1] = new VertexPositionColor(new Vector3(position.X + size.X, position.Y, 0.0f), color);
+            _vertices[vertexOffset + 2] = new VertexPositionColor(new Vector3(position.X + size.X, position.Y + size.Y, 0.0f), color);
+            _vertices[vertexOffset + 3] = new VertexPositionColor(new Vector3(position.X, position.Y + size.Y, 0.0f), color);
 
             var indexOffset = _usedBlocks * 6;
             _indices[indexOffset + 0] = (uint)vertexOffset + 0;

@@ -1,11 +1,12 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-
 using MonoGame.Extended;
 using MonoGame.Extended.ViewportAdapters;
-using System;
 using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Xna.Framework.Input;
+using Tetris.Helpers;
 
 namespace Tetris
 {
@@ -34,8 +35,8 @@ namespace Tetris
 
             new[]
             {
-                "-##",
-                "-##"
+                "##",
+                "##"
             },
 
             new[]
@@ -67,131 +68,181 @@ namespace Tetris
             }
         };
 
+        private readonly ColorPalette _mainPalette = new ColorPalette(new []{
+            new Color(254, 74, 73),
+            new Color(42, 183, 202),
+            new Color(254, 215, 102),
+            new Color(125, 206, 105),
+            new Color(46, 64, 82)
+        });
+
+        private readonly GraphicsDeviceManager _deviceManager;
+
         private Board _board;
         private Matrix _projection;
         private Camera2D _camera;
         private ViewportAdapter _viewportAdapter;
         private FramesPerSecondCounter _fpsCounter;
-        private bool _gameOver;
         private readonly InputManager _inputManager;
+        private Piece _fallingPiece;
+        private readonly Interval _fallInterval;
+        private readonly Timer _createFallingPieceTimer;
+        private bool _gameOver = false;
+        private List<BlockCleanAnimation> _blockCleanAnimations;
+
+        public static readonly Vector2 BlockSize = new Vector2(30);
+        public static readonly Point BoardSize = new Point(10, 20);
 
         public Game1()
         {
-            var manager = new GraphicsDeviceManager(this)
+            _deviceManager = new GraphicsDeviceManager(this)
             {
-                PreferredBackBufferWidth = 1600,
-                PreferredBackBufferHeight = 1600,
-                SynchronizeWithVerticalRetrace = false
+                PreferredBackBufferWidth = 800,
+                PreferredBackBufferHeight = 800
             };
 
             _inputManager = new InputManager();
 
+            _fallInterval = new Interval(TimeSpan.FromSeconds(0.3), MoveFallingPieceDown);
+            _fallInterval.Start();
+
+            _createFallingPieceTimer = new Timer(TimeSpan.FromSeconds(0.5), CreateFallingPiece);
+            _createFallingPieceTimer.Stop();
+
+            _blockCleanAnimations = new List<BlockCleanAnimation>();
+
             Content.RootDirectory = "Content";
         }
-        
+
+        private void CreateFallingPiece()
+        {
+            _fallingPiece = CreateRandomPiece();
+            _fallInterval.Start();
+            _createFallingPieceTimer.Stop();
+        }
+
+        private void MoveFallingPieceDown()
+        {
+            if (_board.CanPieceContinueFalling(_fallingPiece))
+            {
+                _fallingPiece.Position.Y += 1;
+            }
+
+            else if (_fallingPiece.Position.Y <= 0)
+            {
+                _gameOver = true;
+                _fallInterval.Stop();
+                _fallingPiece = null;
+            }
+
+            else
+            {
+                PlaceFallingPieceIntoBoard();
+            }
+        }
+
+        void PlaceFallingPieceIntoBoard()
+        {
+            _board.AddPieceIntoPlace(_fallingPiece);
+            _fallingPiece = null;
+            _fallInterval.Stop();
+
+            _createFallingPieceTimer.Restart();
+
+            var cleanAnimations = _board.ExtractFullRows().Select(blockRow => new BlockCleanAnimation(blockRow));
+            _blockCleanAnimations.AddRange(cleanAnimations);
+        }
+
         protected override void Initialize()
         {
-            IsFixedTimeStep = false;
             IsMouseVisible = true;
 
             GraphicsDevice.BlendState = BlendState.AlphaBlend;
-            _debugFont = Content.Load<SpriteFont>("font");
-
-            _quadBatch = new QuadBatchRenderer(GraphicsDevice);
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
 
             _fpsCounter = new FramesPerSecondCounter();
 
-            _projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 100);
+            _projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width,
+                GraphicsDevice.Viewport.Height, 0, 0, 100);
 
-            _viewportAdapter = new BoxingViewportAdapter(Window, GraphicsDevice, GraphicsDevice.Viewport.Width / 2, GraphicsDevice.Viewport.Height / 2);
+            _viewportAdapter = new BoxingViewportAdapter(Window, GraphicsDevice, GraphicsDevice.Viewport.Width,
+                GraphicsDevice.Viewport.Height);
+
             _camera = new Camera2D(_viewportAdapter);
 
-            var boardSize = new Point(10, 20);
-            var boardX = _viewportAdapter.VirtualWidth / 2.0f - (Board.BlockSize.X * boardSize.X / 2.0f);
-            var boardY = _viewportAdapter.VirtualHeight / 2.0f - (Board.BlockSize.Y * boardSize.Y / 2.0f);
-            _board = new Board(new Vector2(boardX, boardY), boardSize, GameOver);
+            var center = _viewportAdapter.Center.ToVector2();
+            var boardSizeInPixels = BoardSize.ToVector2() * BlockSize;
+
+            _board = new Board(BoardSize, BlockSize);
+            _board.Transform.Position = new Vector3(center - boardSizeInPixels / 2.0f, 0);
+
+            _fallingPiece = CreateRandomPiece();
 
             base.Initialize();
         }
 
-        private void GameOver()
-        {
-            _gameOver = true;
-        }
-
         protected override void LoadContent()
         {
-            // Create a new SpriteBatch, which can be used to draw textures.
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _quadBatch = new QuadBatchRenderer(GraphicsDevice);
 
-            // TODO: use this.Content to load your game content here
+            _debugFont = Content.Load<SpriteFont>("font");
         }
 
         protected override void UnloadContent()
         {
             // TODO: Unload any non ContentManager content here
         }
-        
+
         protected override void Update(GameTime gameTime)
         {
             _inputManager.Update(gameTime);
 
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
+            _fallInterval.Update(gameTime.ElapsedGameTime);
+            _createFallingPieceTimer.Update(gameTime.ElapsedGameTime);
 
-            var mouse = Mouse.GetState();
+            if (_fallingPiece != null)
+            {
+                if (_inputManager.IsKeyReleased(Keys.Right) &&
+                    _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Right))
+                {
+                    _fallingPiece.Position.X += 1;
+                }
 
-            var mousePos = mouse.Position.ToVector2();
-            var pos = _camera.ScreenToWorld(mousePos);
+                else if (_inputManager.IsKeyReleased(Keys.Left) &&
+                         _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Left))
+                {
+                    _fallingPiece.Position.X -= 1;
+                }
 
-            // TODO: Add your update logic here
-            _board.Update(gameTime);
+                else if (_inputManager.IsKeyReleased(Keys.Space))
+                {
+                    _fallingPiece.Rotate();
+                }
+
+                else if (_inputManager.IsKeyReleased(Keys.Down))
+                {
+                    _fallingPiece.Position = _board.GetGroundPositionForPiece(_fallingPiece);
+                    PlaceFallingPieceIntoBoard();
+                }
+            }
+
+            _blockCleanAnimations.ForEach(animation => animation.Update(gameTime));
+
             _fpsCounter.Update(gameTime);
-
-            if (_board.IsWaitingForFallingPiece)
-            {
-                var randomPieceTemplate = _pieceTemplates[0];
-                var piece = Piece.FromTemplate(randomPieceTemplate, Color.White);
-
-                _board.SetFallingPiece(piece);
-            }
-
-            if (_inputManager.IsKeyReleased(Keys.A))
-            {
-                _board.FallingPieceInterval.Delay += TimeSpan.FromMilliseconds(50);
-            }
-
-            if (_inputManager.IsKeyReleased(Keys.S))
-            {
-                _board.FallingPieceInterval.Delay -= TimeSpan.FromMilliseconds(50);
-            }
-
-            if (_inputManager.IsKeyReleased(Keys.Space))
-            {
-                _board.RotateFallingPiece();
-            }
-
-            if (_inputManager.IsKeyReleased(Keys.Left))
-            {
-                _board.MoveFallingPieceLeft();
-            }
-
-            if (_inputManager.IsKeyReleased(Keys.Right))
-            {
-                _board.MoveFallingPieceRight();
-            }
 
             base.Update(gameTime);
         }
-        
+
         protected override void Draw(GameTime gameTime)
         {
             _quadBatch.Clear();
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // TODO: Add your drawing code here
-            _board.Render(GraphicsDevice, _quadBatch, _camera.GetViewMatrix(), _projection);
+            _board.Render(_quadBatch);
+
+            _fallingPiece?.Render(_quadBatch, _board.BoardToWorldPosition(_fallingPiece.Position.Y, _fallingPiece.Position.X), BlockSize);
+            _blockCleanAnimations.ForEach(animation => animation.Render(_quadBatch, BlockSize));
+
             _quadBatch.Render(GraphicsDevice, _camera.GetViewMatrix(), _projection);
 
             _spriteBatch.Begin();
@@ -203,6 +254,25 @@ namespace Tetris
             _spriteBatch.End();
 
             base.Draw(gameTime);
+        }
+
+        protected override void EndDraw()
+        {
+            var cleanAnimationsLength = _blockCleanAnimations.Count;
+            _blockCleanAnimations = _blockCleanAnimations.Where(animation => !animation.IsFinished).ToList();
+
+            if (cleanAnimationsLength > _blockCleanAnimations.Count)
+            {
+                _board.FallRows();
+            }
+
+            base.EndDraw();
+        }
+
+        private Piece CreateRandomPiece()
+        {
+            var randomIndex = new Random().Next(_pieceTemplates.Count);
+            return Piece.FromTemplate(_pieceTemplates[randomIndex], _mainPalette.PickRandom());
         }
 
         protected override void Dispose(bool disposing)

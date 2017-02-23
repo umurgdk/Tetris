@@ -38,16 +38,20 @@
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Animation.cs" />
     <Compile Include="Block.cs" />
+    <Compile Include="BlockCleanAnimation.cs" />
+    <Compile Include="BlockRow.cs" />
     <Compile Include="Board.cs" />
     <Compile Include="Game1.cs" />
+    <Compile Include="Helpers\ColorPalette.cs" />
+    <Compile Include="Helpers\Interval.cs" />
+    <Compile Include="Helpers\Timer.cs" />
     <Compile Include="InputManager.cs" />
-    <Compile Include="Interval.cs" />
     <Compile Include="Piece.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QuadBatchRenderer.cs" />
-    <Compile Include="Timer.cs" />
     <Compile Include="Transform.cs" />
   </ItemGroup>
   <ItemGroup>

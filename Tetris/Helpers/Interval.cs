@@ -1,6 +1,6 @@
 using System;
 
-namespace Tetris
+namespace Tetris.Helpers
 {
     public class Interval
     {

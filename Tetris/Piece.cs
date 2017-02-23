@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Microsoft.Xna.Framework;
 
 namespace Tetris
@@ -17,7 +18,7 @@ namespace Tetris
             set { Blocks[row, col] = value; }
         }
 
-        public Piece(int rows, int cols)
+        private Piece(int rows, int cols)
         {
             Blocks = new Block[rows, cols];
         }
@@ -53,15 +54,32 @@ namespace Tetris
 
             var newBlocks = new Block[newRows, newCols];
             
-            for (var oldRow = 0; oldRow < Rows; oldRow++)
+            for (var oldRow = Rows -1; oldRow >= 0; oldRow--)
             {
                 for (var oldCol = 0; oldCol < Cols; oldCol++)
                 {
-                    newBlocks[oldCol, oldRow] = Blocks[oldRow, oldCol];
+                    newBlocks[oldCol, (Rows - 1) - oldRow] = Blocks[oldRow, oldCol];
                 }
             }
 
             Blocks = newBlocks;
+        }
+
+        public void Render(QuadBatchRenderer renderer, Vector2 position, Vector2 blockSize)
+        {
+            for (var row = 0; row < Rows; row++)
+            {
+                for (var col = 0; col < Cols; col++)
+                {
+                    if (Blocks[row, col].IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    var blockPosition = new Vector2(col, row) * blockSize + position;
+                    renderer.AddQuad(blockPosition, blockSize, Blocks[row, col].Color);
+                }
+            }
         }
     }
 }

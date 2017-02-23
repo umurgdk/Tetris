@@ -1,35 +1,33 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Remoting.Lifetime;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using Tetris;
 
 namespace Tetris
 {
+    public enum BoardMoveDirection
+    {
+        Down,
+        Left,
+        Right
+    }
+
     public class Board
     {
-        public static readonly Vector2 BlockSize = new Vector2(30.0f);
-
         public Transform Transform { get; } = new Transform();
 
-        public Interval FallingPieceInterval;
-
         private Block[,] _blocks;
-        private Piece _fallingPiece;
+        private Vector2 _blockSize;
 
         public int Columns => _blocks.GetLength(1);
         public int Rows => _blocks.GetLength(0);
 
-        private bool _isGameOver = false;
-        private readonly Action _onGameOver;
-
-        public bool IsWaitingForFallingPiece => _fallingPiece == null;
-
-        public Board(Vector2 position, Point boardSize, Action onGameOver)
+        public Board(Point boardSize, Vector2 blockSize)
         {
-            Transform.Position = new Vector3(position, 0);
-
+            _blockSize = blockSize;
             _blocks = new Block[boardSize.Y, boardSize.X];
-
-            _onGameOver = onGameOver;
 
             for (var row = 0; row < Rows; row++)
             {
@@ -38,201 +36,263 @@ namespace Tetris
                     _blocks[row, col].IsEmpty = true;
                 }
             }
-
-            FallingPieceInterval = new Interval(TimeSpan.FromSeconds(0.5), MoveFallingPieceDown);
-            FallingPieceInterval.Start();
         }
 
-        public void Clear()
+        public bool CanPieceContinueFalling(Piece piece)
         {
-            _blocks = new Block[Rows, Columns];
-        }
-
-        public void MoveFallingPieceDown()
-        {
-            _fallingPiece.Position.Y += 1;
-        }
-
-        public void MoveFallingPieceRight()
-        {
-            if (_fallingPiece.Right < Columns - 1)
+            if (piece.Bottom == Rows - 1)
             {
-                var col = _fallingPiece.Cols - 1;
-                for (var row = 0; row < _fallingPiece.Rows; row++)
+                return false;
+            }
+
+            for (var row = piece.Rows - 1; row >= 0; row--)
+            {
+                for (var col = 0; col < piece.Cols; col++)
                 {
-                    var blockPosition = _fallingPiece.Position + new Point(col, row);
-
-                    if (blockPosition.X < 0 || blockPosition.Y < 0)
-                    {
-                        continue;
-                    }
-
-                    if (!_fallingPiece.Blocks[row, col].IsEmpty && !_blocks[blockPosition.Y, blockPosition.X + 1].IsEmpty)
-                    {
-                        return;
-                    }
-                }
-
-                _fallingPiece.Position.X += 1;
-            }
-        }
-
-        public void MoveFallingPieceLeft()
-        {
-            if (_fallingPiece.Position.X <= 0)
-            {
-                return;
-            }
-
-            for (var row = 0; row < _fallingPiece.Rows; row++)
-            {
-                var blockPosition = _fallingPiece.Position + new Point(0, row);
-
-                if (blockPosition.X < 0 || blockPosition.Y < 0)
-                {
-                    continue;
-                }
-
-                if (!_fallingPiece.Blocks[row, 0].IsEmpty && !_blocks[blockPosition.Y, blockPosition.X - 1].IsEmpty)
-                {
-                    return;
-                }
-            }
-
-            _fallingPiece.Position.X -= 1;
-        }
-
-        public void RotateFallingPiece()
-        {
-            _fallingPiece.Rotate();
-        }
-
-        public void Update(GameTime gameTime)
-        {
-            if (_fallingPiece == null || _isGameOver)
-            {
-                return;
-            }
-
-            FallingPieceInterval.Update(gameTime.ElapsedGameTime);
-
-            CheckCollision();
-        }
-
-        private void CheckCollision()
-        {
-            // ReSharper disable once ReplaceWithSingleAssignment.False
-            var shouldEmbed = false;
-
-            // Check for ground collision
-            if (_fallingPiece.Position.Y + _fallingPiece.Rows == Rows)
-            {
-                shouldEmbed = true;
-            }
-
-            // Check falling piece collision with other pieces
-            // Starting from bottom of the piece
-            for (int row = _fallingPiece.Rows - 1; (row >= 0) && !shouldEmbed; row--)
-            {
-                for (int col = 0; col < _fallingPiece.Cols; col++)
-                {
-                    var block = _fallingPiece[row, col];
-                    var blockGridPosition = _fallingPiece.Position + new Point(col, row);
+                    var block = piece[row, col];
+                    var blockGridPosition = piece.Position + new Point(col, row);
 
                     if (!block.IsEmpty && blockGridPosition.Y >= 0 && !_blocks[blockGridPosition.Y + 1, blockGridPosition.X].IsEmpty)
                     {
-                        shouldEmbed = true;
-                        break;
+                        return false;
                     }
                 }
             }
 
-            // If falling piece collides and doesn't fit in the board, game over!
-            if (shouldEmbed && _fallingPiece.Position.Y <= 0 && !_isGameOver)
+            return true;
+        }
+
+        public bool CanPieceMoveTo(Piece piece, BoardMoveDirection direction)
+        {
+            if (IsPieceNearBorder(piece, direction))
             {
-                _isGameOver = true;
-                _onGameOver();
+                return false;
             }
 
-            // If there is any collision embed piece in board blocks
-            if (!_isGameOver && shouldEmbed)
+            if (IsPieceNeighborOccupied(piece, direction))
             {
-                EmbedFallingPiece();
-                _fallingPiece = null;
-                FallingPieceInterval.Stop();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool IsPieceNeighborOccupied(Piece piece, int xOffset, int yOffset)
+        {
+            for (var row = 0; row < piece.Rows; row++)
+            {
+                for (var col = 0; col < piece.Cols; col++)
+                {
+                    var block = piece.Blocks[row, col];
+
+                    if (block.IsEmpty) continue;
+
+                    var blockPosition = piece.Position + new Point(col, row);
+                    var targetPosition = new Point(blockPosition.X + xOffset, blockPosition.Y + yOffset);
+
+                    if (targetPosition.X < 0 || targetPosition.X >= Columns || targetPosition.Y >= Rows) continue;
+
+                    if (!_blocks[targetPosition.Y, targetPosition.X].IsEmpty)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsPieceNeighborOccupied(Piece piece, BoardMoveDirection direction)
+        {
+            var xOffset = direction == BoardMoveDirection.Left
+                ? -1
+                : (direction == BoardMoveDirection.Right ? +1 : 0);
+
+            var yOffset = direction == BoardMoveDirection.Down ? 1 : 0;
+
+            return IsPieceNeighborOccupied(piece, xOffset, yOffset);
+        }
+
+        private bool IsPieceNearBorder(Piece piece, BoardMoveDirection direction)
+        {
+            switch (direction)
+            {
+                case BoardMoveDirection.Down:
+                    return piece.Bottom == Rows - 1;
+
+                case BoardMoveDirection.Left:
+                    return piece.Position.X == 0;
+
+                case BoardMoveDirection.Right:
+                    return piece.Right == Columns - 1;
+
+                default:
+                    return false;
             }
         }
 
-        public void EmbedFallingPiece()
+        private bool FindNextEmptyRow(int indexFromBottom, out int nextEmptyRow)
         {
-            for (var row = 0; row < _fallingPiece.Rows; row++)
+            var nextIndex = indexFromBottom;
+
+            for (var row = indexFromBottom; row >= 0; row--)
             {
-                for (var col = 0; col < _fallingPiece.Cols; col++)
+                var allEmpty = true;
+
+                for (var col = 0; col < Columns - 1; col++)
                 {
-                    var block = _fallingPiece[row, col];
+                    if (!_blocks[row, col].IsEmpty)
+                    {
+                        allEmpty = false;
+                        break;
+                    }
+                }
+
+                if (allEmpty)
+                {
+                    nextEmptyRow = nextIndex;
+                    return true;
+                }
+
+                nextIndex -= 1;
+            }
+
+            nextEmptyRow = -1;
+
+            return false;
+        }
+
+        public void FallRows()
+        {
+            // There will be no empty rows more than 4 in tetris
+            var rowsMoved = 0;
+            var nextEmptyRowIndex = 0;
+
+            while (rowsMoved < 4 && FindNextEmptyRow(Rows - 1, out nextEmptyRowIndex))
+            {
+                for (var row = nextEmptyRowIndex; row > 0; row--)
+                {
+                    for (var col = 0; col < Columns; col++)
+                    {
+                        _blocks[row, col] = _blocks[row - 1, col];
+                        _blocks[row - 1, col] = new Block {IsEmpty = true};
+                    }
+                }
+
+                rowsMoved += 1;
+            }
+        }
+
+        public Point GetGroundPositionForPiece(Piece piece)
+        {
+            var targetPosition = piece.Position;
+            var yOffset = 0;
+
+            for (var targetBottom = piece.Bottom + 1; targetBottom < Rows; targetBottom++)
+            {
+                if (IsPieceNeighborOccupied(piece, 0, yOffset + 1))
+                {
+                    break;
+                }
+
+                yOffset += 1;
+            }
+
+            targetPosition.Y += yOffset;
+
+            return targetPosition;
+        }
+
+        public void AddPieceIntoPlace(Piece piece)
+        {
+            for (var row = 0; row < piece.Rows; row++)
+            {
+                for (var col = 0; col < piece.Cols; col++)
+                {
+                    var block = piece[row, col];
 
                     if (!block.IsEmpty)
                     {
-                        var blockPosition = _fallingPiece.Position + new Point(col, row);
+                        var blockPosition = piece.Position + new Point(col, row);
                         _blocks[blockPosition.Y, blockPosition.X] = block;
                     }
                 }
             }
         }
 
-        public void SetFallingPiece(Piece piece)
+        Vector2 BoardToLocalPosition(int row, int col)
         {
-            _fallingPiece = piece;
-            FallingPieceInterval.Start();
-
-            piece.Position.Y = -piece.Rows;
+            return new Vector2(col, row) * _blockSize;
         }
 
-        public Vector2 BoardToLocalPosition(int row, int col)
+        public Vector2 BoardToWorldPosition(int row, int col)
         {
-            return new Vector2(col, row) * BlockSize;
+            return Vector2.Transform(BoardToLocalPosition(row, col), Transform.Matrix);
         }
 
-        public Vector3 BoardToWorldPosition(int row, int col)
-        {
-            return Vector3.Transform(new Vector3(BoardToLocalPosition(row, col), 0), Transform.Matrix);
-        }
-
-        public void Render(GraphicsDevice device, QuadBatchRenderer batch, Matrix view, Matrix projection)
+        public void Render(QuadBatchRenderer batch)
         {
             // Draw background
-            batch.AddQuad(Transform, Vector2.Zero, new Vector2(Columns, Rows) * BlockSize, new Color(0f, 0f, 0f, 0.4f));
+            batch.AddQuad(BoardToWorldPosition(0, 0), new Vector2(Columns, Rows) * _blockSize, new Color(0f, 0f, 0f, 0.4f));
 
+            // Draw blocks
             for (var row = 0; row < Rows; row++)
             {
                 for (var col = 0; col < Columns; col++)
                 {
                     if (!_blocks[row,col].IsEmpty)
                     {
-                        batch.AddQuad(Transform, BoardToLocalPosition(row, col), BlockSize, _blocks[row, col].Color);
+                        batch.AddQuad(BoardToWorldPosition(row, col), _blockSize, _blocks[row, col].Color);
                     }
                 }
             }
+        }
 
-            if (_fallingPiece == null)
+        public List<BlockRow> ExtractFullRows()
+        {
+            var fullRows = new List<int>();
+
+            for (var row = Rows - 1; row >= 0; row--)
             {
-                return;
-            }
-            
-            for (var row = 0; row < _fallingPiece.Rows; row++)
-            {
-                for (var col = 0; col < _fallingPiece.Cols; col++)
+                var isRowFull = true;
+                for (var col = 0; col < Columns; col++)
                 {
-                    var block = _fallingPiece[row, col];
-                    var piecePosition = BoardToLocalPosition(_fallingPiece.Position.Y, _fallingPiece.Position.X);
-                    var blockPosition = piecePosition + BoardToLocalPosition(row, col);
-
-                    if (!block.IsEmpty && blockPosition.X >= 0 && blockPosition.Y >= 0)
+                    if (_blocks[row, col].IsEmpty)
                     {
-                        batch.AddQuad(Transform, blockPosition, BlockSize, block.Color);
+                        isRowFull = false;
+                        break;
                     }
                 }
+
+                if (isRowFull)
+                {
+                    fullRows.Add(row);
+                }
             }
+
+            if (fullRows.Count == 0)
+            {
+                return new List<BlockRow>();
+            }
+
+            var emptyBlock = new Block
+            {
+                IsEmpty = true
+            };
+
+
+            return fullRows.Select(row =>
+            {
+                var fullBlocks = new Block[Columns];
+
+                for (int col = 0; col < Columns; col++)
+                {
+                    fullBlocks[col] = _blocks[row, col];
+                    _blocks[row, col] = emptyBlock;
+                }
+
+                return new BlockRow(fullBlocks, BoardToWorldPosition(row, 0));
+            }).ToList();
         }
     }
 }

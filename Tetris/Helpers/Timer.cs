@@ -1,6 +1,6 @@
 using System;
 
-namespace Tetris
+namespace Tetris.Helpers
 {
     public class Timer
     {
@@ -9,13 +9,13 @@ namespace Tetris
 
         private TimeSpan _remaining;
 
-        public TimeSpan Delay;
-        public Action Action;
+        private TimeSpan _delay;
+        private readonly Action _action;
 
         public Timer(TimeSpan delay, Action action)
         {
-            Delay = delay;
-            Action = action;
+            _delay = delay;
+            _action = action;
             _remaining = TimeSpan.FromTicks(delay.Ticks);
         }
 
@@ -27,12 +27,19 @@ namespace Tetris
         public void Stop()
         {
             _paused = true;
-            _remaining = Delay;
+            _remaining = TimeSpan.FromTicks(_delay.Ticks);
         }
 
         public void Pause()
         {
             _paused = true;
+        }
+
+        public void Restart()
+        {
+            _finished = false;
+            _paused = false;
+            _remaining = TimeSpan.FromTicks(_delay.Ticks);
         }
 
         public void Update(TimeSpan deltaTime)
@@ -46,7 +53,7 @@ namespace Tetris
 
             if (_remaining.TotalSeconds <= 0)
             {
-                Action();
+                _action();
                 _finished = true;
             }
         }
