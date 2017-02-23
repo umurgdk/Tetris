@@ -197,32 +197,37 @@ namespace Tetris
         {
             _inputManager.Update(gameTime);
 
-            _fallInterval.Update(gameTime.ElapsedGameTime);
-            _createFallingPieceTimer.Update(gameTime.ElapsedGameTime);
+            _board.Update(gameTime);
 
-            if (_fallingPiece != null)
+            if (!_board.IsBlockFallAnimationInProgress)
             {
-                if (_inputManager.IsKeyReleased(Keys.Right) &&
-                    _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Right))
-                {
-                    _fallingPiece.Position.X += 1;
-                }
+                _fallInterval.Update(gameTime.ElapsedGameTime);
+                _createFallingPieceTimer.Update(gameTime.ElapsedGameTime);
 
-                else if (_inputManager.IsKeyReleased(Keys.Left) &&
-                         _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Left))
+                if (_fallingPiece != null)
                 {
-                    _fallingPiece.Position.X -= 1;
-                }
+                    if (_inputManager.IsKeyReleased(Keys.Right) &&
+                        _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Right))
+                    {
+                        _fallingPiece.Position.X += 1;
+                    }
 
-                else if (_inputManager.IsKeyReleased(Keys.Space))
-                {
-                    _fallingPiece.Rotate();
-                }
+                    else if (_inputManager.IsKeyReleased(Keys.Left) &&
+                             _board.CanPieceMoveTo(_fallingPiece, BoardMoveDirection.Left))
+                    {
+                        _fallingPiece.Position.X -= 1;
+                    }
 
-                else if (_inputManager.IsKeyReleased(Keys.Down))
-                {
-                    _fallingPiece.Position = _board.GetGroundPositionForPiece(_fallingPiece);
-                    PlaceFallingPieceIntoBoard();
+                    else if (_inputManager.IsKeyReleased(Keys.Space))
+                    {
+                        _fallingPiece.Rotate();
+                    }
+
+                    else if (_inputManager.IsKeyReleased(Keys.Down))
+                    {
+                        _fallingPiece.Position = _board.GetGroundPositionForPiece(_fallingPiece);
+                        PlaceFallingPieceIntoBoard();
+                    }
                 }
             }
 

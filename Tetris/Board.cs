@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Remoting.Lifetime;
 using Microsoft.Xna.Framework;
-using Tetris;
 
 namespace Tetris
 {
@@ -21,8 +19,12 @@ namespace Tetris
         private Block[,] _blocks;
         private Vector2 _blockSize;
 
+        private BoardRowFallAnimation _rowFallAnimation;
+
         public int Columns => _blocks.GetLength(1);
         public int Rows => _blocks.GetLength(0);
+
+        public bool IsBlockFallAnimationInProgress => _rowFallAnimation != null && !_rowFallAnimation.IsFinished;
 
         public Board(Point boardSize, Vector2 blockSize)
         {
@@ -137,18 +139,7 @@ namespace Tetris
 
             for (var row = indexFromBottom; row >= 0; row--)
             {
-                var allEmpty = true;
-
-                for (var col = 0; col < Columns - 1; col++)
-                {
-                    if (!_blocks[row, col].IsEmpty)
-                    {
-                        allEmpty = false;
-                        break;
-                    }
-                }
-
-                if (allEmpty)
+                if (IsRowEmpty(row))
                 {
                     nextEmptyRow = nextIndex;
                     return true;
@@ -162,24 +153,43 @@ namespace Tetris
             return false;
         }
 
+        private bool IsRowEmpty(int row)
+        {
+            for (var col = 0; col < Columns - 1; col++)
+            {
+                if (!_blocks[row, col].IsEmpty)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public void FallRows()
         {
             // There will be no empty rows more than 4 in tetris
-            var rowsMoved = 0;
-            var nextEmptyRowIndex = 0;
+            int nextEmptyRowIndex;
 
-            while (rowsMoved < 4 && FindNextEmptyRow(Rows - 1, out nextEmptyRowIndex))
+            FindNextEmptyRow(Rows - 1, out nextEmptyRowIndex);
+
+            var rowIndexMoveScales = new Dictionary<int, int>();
+            var fallRows = 0;
+
+            for (var row = nextEmptyRowIndex; row > 0; row--)
             {
-                for (var row = nextEmptyRowIndex; row > 0; row--)
+                if (IsRowEmpty(row))
                 {
-                    for (var col = 0; col < Columns; col++)
-                    {
-                        _blocks[row, col] = _blocks[row - 1, col];
-                        _blocks[row - 1, col] = new Block {IsEmpty = true};
-                    }
+                    fallRows += 1;
+                    continue;
                 }
 
-                rowsMoved += 1;
+                rowIndexMoveScales[row] = fallRows;
+            }
+
+            if (rowIndexMoveScales.Count > 0)
+            {
+                _rowFallAnimation = new BoardRowFallAnimation(TimeSpan.FromSeconds(0.5), rowIndexMoveScales);
             }
         }
 
@@ -230,6 +240,33 @@ namespace Tetris
             return Vector2.Transform(BoardToLocalPosition(row, col), Transform.Matrix);
         }
 
+        public void Update(GameTime gameTime)
+        {
+            _rowFallAnimation?.Update(gameTime);
+
+            if (_rowFallAnimation != null && _rowFallAnimation.IsFinished)
+            {
+                ShiftRows(_rowFallAnimation.RowIndexMoves);
+                _rowFallAnimation = null;
+            }
+        }
+
+        private void ShiftRows(Dictionary<int, int> rowIndexMoves)
+        {
+            var emptyBlock = new Block {IsEmpty = true};
+            foreach (var rowIndexMove in rowIndexMoves)
+            {
+                var shiftedRow = rowIndexMove.Key;
+                var scale = rowIndexMove.Value;
+
+                for (var col = 0; col < Columns; col++)
+                {
+                    _blocks[shiftedRow + scale, col] = _blocks[shiftedRow, col];
+                    _blocks[shiftedRow, col] = emptyBlock;
+                }
+            }
+        }
+
         public void Render(QuadBatchRenderer batch)
         {
             // Draw background
@@ -242,10 +279,22 @@ namespace Tetris
                 {
                     if (!_blocks[row,col].IsEmpty)
                     {
-                        batch.AddQuad(BoardToWorldPosition(row, col), _blockSize, _blocks[row, col].Color);
+                        batch.AddQuad(GetBlockPosition(row, col), _blockSize, _blocks[row, col].Color);
                     }
                 }
             }
+        }
+
+        Vector2 GetBlockPosition(int row, int col)
+        {
+            var blockPosition = BoardToWorldPosition(row, col);
+
+            if (_rowFallAnimation != null)
+            {
+                blockPosition += _rowFallAnimation.GetRowOffset(row, _blockSize);
+            }
+
+            return blockPosition;
         }
 
         public List<BlockRow> ExtractFullRows()

@@ -43,6 +43,7 @@
     <Compile Include="BlockCleanAnimation.cs" />
     <Compile Include="BlockRow.cs" />
     <Compile Include="Board.cs" />
+    <Compile Include="BoardRowFallAnimation.cs" />
     <Compile Include="Game1.cs" />
     <Compile Include="Helpers\ColorPalette.cs" />
     <Compile Include="Helpers\Interval.cs" />
