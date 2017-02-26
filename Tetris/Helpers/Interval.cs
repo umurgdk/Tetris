@@ -1,4 +1,5 @@
 using System;
+using Microsoft.Xna.Framework;
 
 namespace Tetris.Helpers
 {
@@ -7,19 +8,20 @@ namespace Tetris.Helpers
         private bool _paused;
 
         private int _currentRepeat = 0;
+        private TimeSpan _delay;
         private TimeSpan _remaining;
-
-        public TimeSpan Delay;
-        public Action Action;
-        public int MaxRepeat = 0;
+        private readonly Action _action;
+        private readonly int _maxRepeat = 0;
+        private bool _firstFrame;
 
         public Interval(TimeSpan delay, Action action, int maxRepeat = 0)
         {
-            Delay = TimeSpan.FromTicks(delay.Ticks);
-            Action = action;
-            MaxRepeat = maxRepeat;
+            _delay = TimeSpan.FromTicks(delay.Ticks);
+            _action = action;
+            _maxRepeat = maxRepeat;
             _remaining = TimeSpan.FromTicks(delay.Ticks);
             _paused = true;
+            _firstFrame = true;
         }
 
         public void Start()
@@ -30,7 +32,7 @@ namespace Tetris.Helpers
         public void Stop()
         {
             _paused = true;
-            _remaining = new TimeSpan(Delay.Ticks);
+            _remaining = new TimeSpan(_delay.Ticks);
             _currentRepeat = 0;
         }
 
@@ -39,20 +41,26 @@ namespace Tetris.Helpers
             _paused = true;
         }
 
-        public void Update(TimeSpan deltaTime)
+        public void Update(GameTime gameTime)
         {
-            if (_paused || (MaxRepeat != 0 && (_currentRepeat >= MaxRepeat)))
+            if (_firstFrame)
+            {
+                _firstFrame = false;
+                return;
+            }
+
+            if (_paused || (_maxRepeat != 0 && (_currentRepeat >= _maxRepeat)))
             {
                 return;
             }
 
-            _remaining -= deltaTime;
+            _remaining -= gameTime.ElapsedGameTime;;
 
             if (_remaining.Ticks <= 0)
             {
-                Action();
+                _action();
                 _currentRepeat += 1;
-                _remaining = new TimeSpan(Delay.Ticks);
+                _remaining = TimeSpan.FromTicks(_delay.Ticks);
             }
         }
     }

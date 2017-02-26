@@ -1,6 +1,6 @@
 using Microsoft.Xna.Framework;
 
-namespace Tetris
+namespace Otaku
 {
     public class Transform
     {

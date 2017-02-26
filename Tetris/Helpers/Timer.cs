@@ -1,4 +1,6 @@
 using System;
+using Microsoft.Xna.Framework;
+using MonoGame.Extended;
 
 namespace Tetris.Helpers
 {
@@ -12,11 +14,15 @@ namespace Tetris.Helpers
         private TimeSpan _delay;
         private readonly Action _action;
 
+        private bool _firstFrame;
+
         public Timer(TimeSpan delay, Action action)
         {
             _delay = delay;
             _action = action;
             _remaining = TimeSpan.FromTicks(delay.Ticks);
+            _paused = true;
+            _firstFrame = true;
         }
 
         public void Start()
@@ -40,16 +46,23 @@ namespace Tetris.Helpers
             _finished = false;
             _paused = false;
             _remaining = TimeSpan.FromTicks(_delay.Ticks);
+            _firstFrame = true;
         }
 
-        public void Update(TimeSpan deltaTime)
+        public void Update(GameTime gameTime)
         {
+            if (_firstFrame)
+            {
+                _firstFrame = false;
+                return;
+            }
+
             if (_finished || _paused)
             {
                 return;
             }
 
-            _remaining -= deltaTime;
+            _remaining -= gameTime.ElapsedGameTime;
 
             if (_remaining.TotalSeconds <= 0)
             {

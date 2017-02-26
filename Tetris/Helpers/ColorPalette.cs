@@ -5,10 +5,9 @@ namespace Tetris.Helpers
 {
     public class ColorPalette
     {
+        private static readonly Random RandomIndexer = new Random((int)DateTime.Now.Ticks);
         private readonly Color[] _colors;
         public Color this[int i] => _colors[i];
-
-        private Random _random;
 
         public ColorPalette(Color[] colors)
         {
@@ -17,12 +16,7 @@ namespace Tetris.Helpers
 
         public Color PickRandom()
         {
-            if (_random == null)
-            {
-                _random = new Random();
-            }
-
-            return _colors[_random.Next(_colors.Length)];
+            return _colors[RandomIndexer.Next(_colors.Length)];
         }
     }
 }
