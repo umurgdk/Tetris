@@ -24,7 +24,6 @@ namespace Otaku
         void Exit();
 
         void AddEntity(IEntity entity);
-        void CreateEntity(string name);
         void RemoveEntity(IEntity entity);
         T FindEntity<T>(string name) where T: IEntity;
 

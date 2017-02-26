@@ -1,24 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+
 using Otaku;
-using Otaku.Rendering;
+
 using Tetris.Components;
 using Tetris.Entities;
 using Tetris.Helpers;
 
 namespace Tetris
 {
-    public class PlayingScene : IScene
+    public class PlayingScene : Scene
     {
-        public SceneState State { get; set; }
-        public Color BackgroundColor { get; } = Color.Blue;
-        public List<IEntity> Entities { get; private set; }
-
         private readonly BoardRenderer _boardRenderer;
         private readonly PieceRenderer _pieceRenderer;
         private readonly DissolvingBoardRowRenderer _dissolvingBoardRowRenderer;
@@ -35,8 +30,6 @@ namespace Tetris
 
         public PlayingScene()
         {
-            Entities = new List<IEntity>();
-
             var blockRenderer = new BlockRenderer(new Vector2(30));
             _boardRenderer = new BoardRenderer(blockRenderer);
             _pieceRenderer = new PieceRenderer(blockRenderer);
@@ -46,7 +39,7 @@ namespace Tetris
             _createFallingPieceTimer = new Timer(TimeSpan.FromMilliseconds(300), CreateFallingPiece);
         }
 
-        public void LoadContent(ContentManager contentManager)
+        public override void LoadContent(ContentManager contentManager)
         {
             _gui = new GUIEntity(contentManager.Load<SpriteFont>("Content/font"), _pieceRenderer)
             {
@@ -56,7 +49,7 @@ namespace Tetris
             AddEntity(_gui);
         }
 
-        public void Enter()
+        public override void Enter()
         {
             _board = new BoardEntity(_boardRenderer);
             AddEntity(_board);
@@ -72,37 +65,6 @@ namespace Tetris
             InputManager.Instance.BindAction(Keys.Right, MovePieceRight);
             InputManager.Instance.BindAction(Keys.Down,  MovePieceGround);
             InputManager.Instance.BindAction(Keys.Space, RotatePiece);
-        }
-
-        public void Exit()
-        {
-
-        }
-
-        public void AddEntity(IEntity entity)
-        {
-            entity.Scene = this;
-            Entities.Add(entity);
-
-            if (State == SceneState.Play)
-            {
-                entity.Start();
-            }
-        }
-
-        public void CreateEntity(string name)
-        {
-
-        }
-
-        public void RemoveEntity(IEntity entity)
-        {
-            Entities.Remove(entity);
-        }
-
-        public TEntity FindEntity<TEntity>(string name) where TEntity : IEntity
-        {
-            return (TEntity)Entities.FirstOrDefault(entity => entity.Name == name);
         }
 
         private void FallPiece()
@@ -184,7 +146,7 @@ namespace Tetris
             _fallInterval.Start();
         }
 
-        public void Update(GameTime gameTime)
+        public override void Update(GameTime gameTime)
         {
             _fallInterval.Update(gameTime);
             _createFallingPieceTimer.Update(gameTime);
@@ -192,12 +154,7 @@ namespace Tetris
             _gui.NextPiece = _nextPiece;
             _gui.Score = _score;
 
-            Entities.ForEach(e => e.Update(gameTime));
-        }
-
-        public void Render(RenderingContext renderingContext)
-        {
-            Entities.ForEach(e => e.Render(renderingContext));
+            base.Update(gameTime);
         }
     }
 }

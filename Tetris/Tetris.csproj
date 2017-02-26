@@ -66,6 +66,7 @@
     <Compile Include="Otaku\Logger.cs" />
     <Compile Include="Otaku\Rendering\QuadBatchRenderer.cs" />
     <Compile Include="Otaku\Rendering\RenderingContext.cs" />
+    <Compile Include="Otaku\Scene.cs" />
     <Compile Include="Otaku\Transform.cs" />
     <Compile Include="PlayingScene.cs" />
     <Compile Include="Program.cs" />
